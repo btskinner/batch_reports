@@ -1,0 +1,202 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%
+%% [ PROJ ] Bulk report with Bash + Knitr
+%% [ FILE ] template.rnw
+%% [ AUTH ] Benjamin Skinner (@btskinner)
+%% [ INIT ] 13 January 2019
+%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% This file requires the following R inputs:
+%%
+%% data_dir := location of data files
+%% repo_dir := top-level location of reports
+%% stabbr   := two-level state abbrevation (e.g., Alabama == AL)
+
+% ------------------------------------------------------------------------------
+% LATEX SETUP
+% ------------------------------------------------------------------------------
+
+% article document class
+\documentclass[11pt]{article}
+
+% packages
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{tabularx}
+\usepackage{booktabs}
+
+% directories
+\newcommand{\figdir}{\Sexpr{repo_dir}/figures}
+
+% no page numbers
+\pagenumbering{gobble}
+
+% ------------------------------------------------------------------------------
+% R SETUP (CHUNK)
+% ------------------------------------------------------------------------------
+
+<<setup, include = F, cache = F, message = F, echo = F>>=
+## packages
+packages <- c('tidyverse','knitr','grid','scales','xtable')
+suppressPackageStartupMessages(sapply(packages, require, character.only = TRUE))
+
+## set global chunk options
+opts_chunk$set(fig.align = 'center',
+               fig.show = 'hide',
+               fig.path = file.path(repo_dir, 'figures/'),
+               cache = FALSE,
+               echo = FALSE, message = FALSE,
+               warning = FALSE)
+@
+
+<<read_subset_data>>=
+## crosswalk
+cw <- read_csv(file.path(data_dir, 'stcrosswalk.csv'), col_types = cols())
+
+## get relevant state and region information for this report
+this_report <- filter(cw, st == stabbr) %>% mutate(stfips = as.numeric(stfips))
+
+## core data, subset to state of interest and its region (always country too)
+df <- read_csv(file.path(data_dir, 'unemploy_2000_2016.csv'),
+               col_types = cols()) %>%
+    filter(level == 'country' |
+           (level == 'region' & id == this_report[['region']]) |
+           (level == 'state' & id == this_report[['stfips']])) %>%
+    ## add factor for better plotting below
+    mutate(level = factor(level,
+                          levels = c('country', 'region', 'state'),
+                          labels = c('United States',
+                                     this_report[['region_name']],
+                                     this_report[['stname']])))
+
+@
+
+% ==============================================================================
+% BEGIN DOCUMENT
+% ------------------------------------------------------------------------------
+
+\begin{document}
+\begin{center}
+  \Huge \Sexpr{this_report[['stname']]} \\
+  \Large Unemployment rate from 2000 to 2016
+\end{center}
+
+% ------------------------------------------------------------------------------
+% FIGURE
+% ------------------------------------------------------------------------------
+
+<<line_figure>>=
+## get x-axis min/max
+xmin <- min(df[['year']])
+xmax <- max(df[['year']])
+
+## line plot, one line for state, region, and country
+plot <- ggplot(df, aes(x = year, y = unem_rate, colour = level)) +
+    ## want a thicker line for state, so set aes here
+    geom_line(aes(size = level)) +
+    ## want a tick for each year
+    scale_x_continuous(breaks = xmin:xmax) +
+    ## just something pretty on y-axis
+    scale_y_continuous(breaks = pretty_breaks(n = 10)) +
+    ## setting the state line to be thicker
+    scale_size_manual(values = c(1,1,2)) +
+    ## x-axis and y-axis labels
+    xlab('Year') +
+    ylab('Unemployment rate (%)') +
+    ## source
+    labs(caption = 'Source: Data from the Bureau of Labor Statistics') +
+    ## generally plain theme
+    theme_bw(base_size = 14) +
+    ## other changes to look of plot and legend
+    theme(strip.background = element_blank(),
+          strip.placement = 'outside',
+          legend.position = 'top',
+          legend.title = element_blank(),
+          legend.box = 'horizontal',
+          legend.spacing.x = unit(0.2, 'in'),
+          legend.key = element_blank(),
+          panel.background = element_rect(fill = 'white'),
+          panel.grid.major.y = element_line(colour = 'grey',
+                                            linetype = 'dashed'),
+          panel.grid.major.x = element_blank(),
+          panel.grid.minor = element_blank(),
+          axis.ticks.x = element_blank())
+
+## filename in object b/c we'll use in \Sexpr{} below
+fn <- paste0(this_report[['st']], '_trend_line.pdf')
+
+## save plot so we can read back it (don't necessarily have to do it this way,
+## but we'll have more control of placement if we do)
+ggsave(filename = fn,
+       plot = plot,
+       device = 'pdf',
+       path = file.path(repo_dir, 'figures'),
+       width = 9,
+       height = 4,
+       units = 'in',
+       dpi = 'retina')
+@
+
+%% include figure
+\begin{figure}[!h]
+  \includegraphics[width=\textwidth]{\figdir/\Sexpr{fn}}
+\end{figure}
+\vfill
+
+% ------------------------------------------------------------------------------
+% TABLE
+% ------------------------------------------------------------------------------
+
+\begin{table}[!h]
+  \begin{tabularx}{\textwidth}{X*{3}{c}|*{3}{c}}
+    \toprule
+    &\Sexpr{this_report[['stname']]}&United States&Difference
+    &\Sexpr{this_report[['stname']]}&\Sexpr{this_report[['region_name']]}
+    &Difference \\
+<<core_table, results = 'asis'>>=
+## function to bold positive numbers in table
+bold_if_higher <- function(x) {
+    case_when(
+        x > 0 ~ paste0('{\\bfseries ', round(x,2), '}'),
+        TRUE ~ as.character(round(x,2)))
+}
+
+## format data frame for table
+tab_df <- df %>%
+    select(-id) %>%
+    spread(level, unem_rate) %>%
+    mutate(year = as.integer(year),
+           this_st = !!sym(this_report[['stname']]),
+           diff_us = this_st - `United States`,
+           diff_rg = this_st - !!sym(this_report[['region_name']])) %>%
+    select(year, this_report[['stname']], `United States`, diff_us,
+           this_st, this_report[['region_name']], diff_rg) %>%
+    mutate_at(vars(starts_with('diff_')),
+              funs(bold_if_higher))
+
+## print core of table
+print(xtable(tab_df),
+      include.rownames = FALSE,
+      include.colnames = FALSE,
+      comment = FALSE,
+      booktabs = TRUE,
+      sanitize.text.function = function(x) { x },
+      only.contents = TRUE)
+@
+\multicolumn{7}{p{.98\textwidth}}{\footnotesize{\bfseries Note.}
+  National, regional, and state values have been aggregated from
+  county-level estimates, using labor force population size as
+  weights. Bold numbers in the difference columns show when the state
+  unemployment rate was higher than the country's and the state's
+  region, respectively.}
+\end{tabularx}
+\end{table}
+
+\vfill
+\end{document}
+
+% ------------------------------------------------------------------------------
+% END DOCUMENT
+% ==============================================================================
