@@ -1,7 +1,7 @@
 # Making bulk reports with Bash + knitr
 
 This process uses a combination of Bash scripting and knitr to create
-state-specific reports in bulk. The specific example used is showing
+state-specific reports in bulk. The specific example used shows
 state-level unemployment trends from 2000 to 2016. All numbers come
 from the Bureau of Labor Statistics county-level estimates that have
 been aggregated to various levels, using labor force size as weights.
