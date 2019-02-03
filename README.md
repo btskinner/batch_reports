@@ -36,7 +36,7 @@ following scripts in order:
       recommended). 
 	- `-t` option is the name of the template file, without path
       (should be `template.rnw` unless you change the template file
-      name) 
+      name). 
 
 ```bash
 git clone
