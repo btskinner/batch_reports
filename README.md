@@ -1,9 +1,9 @@
-# Making bulk reports with Bash + knitr
+# Batch processing reports with Bash + knitr
 
 This process uses a combination of Bash scripting and
-[knitr](https://yihui.name/knitr/) to create state-specific reports in
-bulk. The specific example used shows state-level unemployment trends
-from 2000 to 2016. All numbers come from the [Bureau of Labor
+[knitr](https://yihui.name/knitr/) to batch process state-specific
+reports. The specific example used shows state-level unemployment
+trends from 2000 to 2016. All numbers come from the [Bureau of Labor
 Statistics county-level
 estimates](https://www.btskinner.me/data/bls-unemployment/) that have
 been aggregated to various levels, using labor force size as weights.
