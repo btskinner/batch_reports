@@ -3,7 +3,7 @@
 ## [ PROJ ] Bulk report with Bash + Knitr
 ## [ FILE ] munge_data.r
 ## [ AUTH ] Benjamin Skinner (@btskinner)
-## [ INIT ] 13 January 2019
+## [ INIT ] 3 Feburary 2019
 ##
 ################################################################################
 
